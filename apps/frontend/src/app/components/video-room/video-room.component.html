@@ -1,7 +1,8 @@
 <div class="video-room">
   @if (isLoading()) {
     <div class="loading">
-      <p>Joining room...</p>
+      <div class="spinner"></div>
+      <p>{{ loadingMessage() }}</p>
     </div>
   }
 
@@ -13,6 +14,23 @@
   }
 
   @if (!isLoading() && !error()) {
+    @if (connectionStatus() === ConnectionStatus.RECONNECTING) {
+      <div class="connection-banner reconnecting">
+        <div class="banner-content">
+          <div class="spinner-small"></div>
+          <span>Connection lost. Attempting to reconnect...</span>
+        </div>
+      </div>
+    }
+
+    @if (connectionStatus() === ConnectionStatus.ERROR) {
+      <div class="connection-banner error">
+        <div class="banner-content">
+          <span>⚠️ Connection failed. Please check your internet connection.</span>
+        </div>
+      </div>
+    }
+
     <div class="room-container">
       <div class="video-grid">
         <div class="video-container local">
@@ -49,6 +67,18 @@
       </div>
 
       <div class="controls">
+        <div class="connection-quality-indicator">
+          @if (connectionQuality() === ConnectionQuality.EXCELLENT) {
+            <span class="quality-badge excellent" title="Excellent connection">🟢 Excellent</span>
+          } @else if (connectionQuality() === ConnectionQuality.GOOD) {
+            <span class="quality-badge good" title="Good connection">🟢 Good</span>
+          } @else if (connectionQuality() === ConnectionQuality.FAIR) {
+            <span class="quality-badge fair" title="Fair connection">🟡 Fair</span>
+          } @else if (connectionQuality() === ConnectionQuality.POOR) {
+            <span class="quality-badge poor" title="Poor connection">🔴 Poor</span>
+          }
+        </div>
+
         <button
           class="control-btn"
           [class.active]="isVideoEnabled()"

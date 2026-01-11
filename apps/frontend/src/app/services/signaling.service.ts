@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { Socket, io } from 'socket.io-client';
 import { Observable, Subject, fromEvent } from 'rxjs';
 import {
@@ -12,12 +12,26 @@ import {
 } from '@cme/shared';
 import { environment } from '../../environments/environment';
 
+export enum ConnectionStatus {
+  CONNECTED = 'connected',
+  CONNECTING = 'connecting',
+  DISCONNECTED = 'disconnected',
+  RECONNECTING = 'reconnecting',
+  ERROR = 'error'
+}
+
 @Injectable({
   providedIn: 'root',
 })
 export class SignalingService {
   private socket: Socket | null = null;
   private connected$ = new Subject<boolean>();
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectTimeout: number | null = null;
+
+  connectionStatus = signal<ConnectionStatus>(ConnectionStatus.DISCONNECTED);
+  isConnected = signal<boolean>(false);
 
   private participantJoined$ = new Subject<ParticipantJoinedEvent>();
   private participantLeft$ = new Subject<ParticipantLeftEvent>();
@@ -35,29 +49,102 @@ export class SignalingService {
       return;
     }
 
+    this.connectionStatus.set(ConnectionStatus.CONNECTING);
+
     this.socket = io(environment.wsUrl || 'http://localhost:3000', {
       transports: ['websocket'],
       autoConnect: true,
+      reconnection: false,
     });
 
     this.socket.on('connect', () => {
       console.log('Connected to signaling server');
       this.connected$.next(true);
+      this.connectionStatus.set(ConnectionStatus.CONNECTED);
+      this.isConnected.set(true);
+      this.reconnectAttempts = 0;
+
+      if (this.reconnectTimeout) {
+        clearTimeout(this.reconnectTimeout);
+        this.reconnectTimeout = null;
+      }
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('Disconnected from signaling server');
+    this.socket.on('disconnect', (reason: string) => {
+      console.log('Disconnected from signaling server:', reason);
       this.connected$.next(false);
+      this.isConnected.set(false);
+      this.connectionStatus.set(ConnectionStatus.DISCONNECTED);
+
+      if (reason === 'io server disconnect' || reason === 'io client disconnect') {
+        return;
+      }
+
+      this.attemptReconnect();
+    });
+
+    this.socket.on('connect_error', (error: Error) => {
+      console.error('Connection error:', error);
+      this.connectionStatus.set(ConnectionStatus.ERROR);
+      this.isConnected.set(false);
+      this.attemptReconnect();
     });
 
     this.setupEventListeners();
   }
 
-  disconnect(): void {
+  private attemptReconnect(): void {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('Max reconnection attempts reached');
+      this.connectionStatus.set(ConnectionStatus.ERROR);
+      return;
+    }
+
+    this.reconnectAttempts++;
+    this.connectionStatus.set(ConnectionStatus.RECONNECTING);
+
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 10000);
+
+    console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms`);
+
+    this.reconnectTimeout = window.setTimeout(() => {
+      if (this.socket) {
+        this.socket.disconnect();
+        this.socket = null;
+      }
+      this.connect();
+    }, delay);
+  }
+
+  resetConnection(): void {
+    this.reconnectAttempts = 0;
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
     }
+    this.connectionStatus.set(ConnectionStatus.DISCONNECTED);
+    this.isConnected.set(false);
+  }
+
+  disconnect(): void {
+    this.reconnectAttempts = this.maxReconnectAttempts;
+
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
+
+    this.connectionStatus.set(ConnectionStatus.DISCONNECTED);
+    this.isConnected.set(false);
   }
 
   joinRoom(

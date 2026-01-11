@@ -7,6 +7,14 @@ export interface PeerConnection {
   remoteStream?: MediaStream;
 }
 
+export enum ConnectionQuality {
+  EXCELLENT = 'excellent',
+  GOOD = 'good',
+  FAIR = 'fair',
+  POOR = 'poor',
+  UNKNOWN = 'unknown'
+}
+
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -31,11 +39,74 @@ export class WebRTCService {
   isAudioEnabled = signal(true);
   isScreenSharing = signal(false);
 
+  connectionQuality = signal<ConnectionQuality>(ConnectionQuality.UNKNOWN);
+  private statsInterval: number | null = null;
+
   private roomId: string | null = null;
   private participantId: string | null = null;
 
   constructor() {
     this.setupSignalingListeners();
+    this.startStatsMonitoring();
+  }
+
+  private startStatsMonitoring(): void {
+    this.statsInterval = window.setInterval(() => {
+      this.checkConnectionQuality();
+    }, 3000);
+  }
+
+  private async checkConnectionQuality(): Promise<void> {
+    if (this.peerConnections.size === 0) {
+      this.connectionQuality.set(ConnectionQuality.UNKNOWN);
+      return;
+    }
+
+    let totalPacketLoss = 0;
+    let totalRtt = 0;
+    let count = 0;
+
+    for (const [participantId, pc] of this.peerConnections) {
+      try {
+        const stats = await pc.getStats();
+
+        stats.forEach((report) => {
+          if (report.type === 'inbound-rtp' && report.kind === 'video') {
+            const packetLoss = report.packetsLost / (report.packetsReceived + report.packetsLost);
+            if (!isNaN(packetLoss)) {
+              totalPacketLoss += packetLoss;
+              count++;
+            }
+          }
+
+          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+            if (report.currentRoundTripTime !== undefined) {
+              totalRtt += report.currentRoundTripTime * 1000;
+            }
+          }
+        });
+      } catch (error) {
+        console.error(`Failed to get stats for ${participantId}:`, error);
+      }
+    }
+
+    if (count === 0) {
+      this.connectionQuality.set(ConnectionQuality.UNKNOWN);
+      return;
+    }
+
+    const avgPacketLoss = totalPacketLoss / count;
+    const avgRtt = totalRtt / count;
+
+    if (avgPacketLoss < 0.02 && avgRtt < 150) {
+      this.connectionQuality.set(ConnectionQuality.EXCELLENT);
+    } else if (avgPacketLoss < 0.05 && avgRtt < 300) {
+      this.connectionQuality.set(ConnectionQuality.GOOD);
+    } else if (avgPacketLoss < 0.1 && avgRtt < 500) {
+      this.connectionQuality.set(ConnectionQuality.FAIR);
+    } else {
+      this.connectionQuality.set(ConnectionQuality.POOR);
+    }
   }
 
   async initializeMedia(): Promise<MediaStream> {
@@ -312,7 +383,11 @@ export class WebRTCService {
   }
 
   cleanup(): void {
-    // Stop all local tracks
+    if (this.statsInterval) {
+      clearInterval(this.statsInterval);
+      this.statsInterval = null;
+    }
+
     const localStream = this.localStream();
     if (localStream) {
       localStream.getTracks().forEach((track) => track.stop());
@@ -321,10 +396,11 @@ export class WebRTCService {
 
     this.stopScreenShare();
 
-    // Close all peer connections
     this.peerConnections.forEach((pc) => pc.close());
     this.peerConnections.clear();
     this.remoteStreams.set(new Map());
+
+    this.connectionQuality.set(ConnectionQuality.UNKNOWN);
   }
 
   getLocalStream(): MediaStream | null {
