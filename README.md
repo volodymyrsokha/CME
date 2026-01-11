@@ -210,33 +210,6 @@ Visualize project dependencies:
 bun nx graph
 ```
 
-## 🎯 Roadmap
-
-### Phase 1: MVP (Current)
-- [x] Project setup with Nx monorepo
-- [x] Database schema and entities
-- [x] Shared DTOs and types
-- [ ] WebSocket signaling server
-- [ ] Room management API
-- [ ] Basic WebRTC peer connections
-- [ ] Angular UI with video components
-
-### Phase 2: Core Features
-- [ ] In-call chat
-- [ ] Screen sharing
-- [ ] Multiple participants (mesh topology)
-- [ ] Media controls (mute/unmute)
-
-### Phase 3: Scaling
-- [ ] SFU implementation (mediasoup/Janus)
-- [ ] TURN/STUN server configuration
-- [ ] Recording functionality
-
-### Phase 4: AI Integration
-- [ ] Call recording storage
-- [ ] AI summary generation
-- [ ] AI agent participants (text-to-speech/speech-to-text)
-
 ## 📝 Environment Variables
 
 See [.env.example](.env.example) for all available configuration options.
