@@ -1,0 +1,77 @@
+<div class="home">
+  <div class="container">
+    <div class="header">
+      <h1>CME - Video Conferencing</h1>
+      <p>Connect with anyone, anywhere</p>
+    </div>
+
+    @if (error()) {
+      <div class="error-message">
+        {{ error() }}
+      </div>
+    }
+
+    <div class="card">
+      <div class="form-group">
+        <label for="displayName">Your Name</label>
+        <input
+          id="displayName"
+          type="text"
+          [(ngModel)]="displayName"
+          placeholder="Enter your name"
+          (keypress)="error.set(null)"
+        />
+      </div>
+
+      <div class="actions">
+        <button
+          class="btn btn-primary"
+          (click)="createRoom()"
+          [disabled]="isCreating()"
+        >
+          @if (isCreating()) {
+            Creating...
+          } @else {
+            Create New Room
+          }
+        </button>
+      </div>
+    </div>
+
+    <div class="divider">
+      <span>OR</span>
+    </div>
+
+    <div class="card">
+      <div class="form-group">
+        <label for="roomId">Room ID</label>
+        <input
+          id="roomId"
+          type="text"
+          [(ngModel)]="roomIdToJoin"
+          placeholder="Enter room ID to join"
+          (keypress)="error.set(null)"
+        />
+      </div>
+
+      <div class="actions">
+        <button
+          class="btn btn-secondary"
+          (click)="joinRoom()"
+        >
+          Join Room
+        </button>
+      </div>
+    </div>
+
+    <div class="info">
+      <h3>Features</h3>
+      <ul>
+        <li>📹 HD Video & Audio Calls</li>
+        <li>🖥️ Screen Sharing</li>
+        <li>💬 In-Call Chat</li>
+        <li>🔒 Secure Peer-to-Peer Connections</li>
+      </ul>
+    </div>
+  </div>
+</div>

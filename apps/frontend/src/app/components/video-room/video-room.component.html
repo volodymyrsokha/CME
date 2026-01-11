@@ -1,0 +1,132 @@
+<div class="video-room">
+  @if (isLoading()) {
+    <div class="loading">
+      <p>Joining room...</p>
+    </div>
+  }
+
+  @if (error()) {
+    <div class="error">
+      <p>{{ error() }}</p>
+      <button (click)="leaveRoom()">Leave</button>
+    </div>
+  }
+
+  @if (!isLoading() && !error()) {
+    <div class="room-container">
+      <div class="video-grid">
+        <div class="video-container local">
+          <video
+            #localVideo
+            [srcObject]="localStream()"
+            [muted]="true"
+            autoplay
+            playsinline
+          ></video>
+          <div class="video-label">
+            {{ displayName() }} (You)
+            @if (!isVideoEnabled()) {
+              <span class="status">Camera Off</span>
+            }
+            @if (!isAudioEnabled()) {
+              <span class="status">Muted</span>
+            }
+          </div>
+        </div>
+
+        @for (entry of remoteStreams() | keyvalue; track entry.key) {
+          <div class="video-container remote">
+            <video
+              [srcObject]="entry.value"
+              autoplay
+              playsinline
+            ></video>
+            <div class="video-label">
+              {{ getParticipantName(entry.key) }}
+            </div>
+          </div>
+        }
+      </div>
+
+      <div class="controls">
+        <button
+          class="control-btn"
+          [class.active]="isVideoEnabled()"
+          (click)="toggleVideo()"
+          title="Toggle Camera"
+        >
+          @if (isVideoEnabled()) {
+            📹 Camera On
+          } @else {
+            📹 Camera Off
+          }
+        </button>
+
+        <button
+          class="control-btn"
+          [class.active]="isAudioEnabled()"
+          (click)="toggleAudio()"
+          title="Toggle Microphone"
+        >
+          @if (isAudioEnabled()) {
+            🎤 Mic On
+          } @else {
+            🎤 Mic Off
+          }
+        </button>
+
+        <button
+          class="control-btn"
+          [class.active]="isScreenSharing()"
+          (click)="toggleScreenShare()"
+          title="Share Screen"
+        >
+          @if (isScreenSharing()) {
+            🖥️ Stop Sharing
+          } @else {
+            🖥️ Share Screen
+          }
+        </button>
+
+        <button
+          class="control-btn leave"
+          (click)="leaveRoom()"
+          title="Leave Room"
+        >
+          📞 Leave
+        </button>
+      </div>
+
+      <div class="chat-sidebar">
+        <div class="chat-header">
+          <h3>Chat</h3>
+          <span class="participant-count">
+            {{ participants().length + 1 }} participant{{ participants().length !== 0 ? 's' : '' }}
+          </span>
+        </div>
+
+        <div class="chat-messages">
+          @for (message of messages(); track message.id) {
+            <div class="message">
+              <div class="message-sender">{{ message.senderName || 'Unknown' }}</div>
+              <div class="message-content">{{ message.content }}</div>
+              <div class="message-time">
+                {{ message.sentAt | date: 'short' }}
+              </div>
+            </div>
+          }
+        </div>
+
+        <div class="chat-input">
+          <input
+            type="text"
+            [(ngModel)]="chatMessage"
+            (keypress)="onChatKeyPress($event)"
+            placeholder="Type a message..."
+          />
+          <button (click)="sendMessage()">Send</button>
+        </div>
+      </div>
+    </div>
+  }
+</div>
